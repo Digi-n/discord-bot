@@ -72,6 +72,10 @@ client.once(discord_js_1.Events.ClientReady, async () => {
     setInterval(() => {
         (0, leaderboard_1.updateLeaderboardMessage)(client).catch(console.error);
     }, 60000);
+    // Keep Alive Ping (Every 14 Minutes)
+    setInterval(() => {
+        console.log('🔔 Keep-Alive Ping: Bot is running...');
+    }, 14 * 60 * 1000);
 });
 client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {

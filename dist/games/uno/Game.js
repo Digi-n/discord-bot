@@ -38,12 +38,12 @@ class Game {
                 .setCustomId('uno_join')
                 .setLabel('Join Game')
                 .setStyle(discord_js_1.ButtonStyle.Success), new discord_js_1.ButtonBuilder()
-                    .setCustomId('uno_start')
-                    .setLabel('Start Game')
-                    .setStyle(discord_js_1.ButtonStyle.Primary), new discord_js_1.ButtonBuilder()
-                        .setCustomId('uno_cancel')
-                        .setLabel('Cancel Game')
-                        .setStyle(discord_js_1.ButtonStyle.Danger));
+                .setCustomId('uno_start')
+                .setLabel('Start Game')
+                .setStyle(discord_js_1.ButtonStyle.Primary), new discord_js_1.ButtonBuilder()
+                .setCustomId('uno_cancel')
+                .setLabel('Cancel Game')
+                .setStyle(discord_js_1.ButtonStyle.Danger));
             const embed = new discord_js_1.EmbedBuilder()
                 .setTitle('🃏 UNO Game Created!')
                 .setDescription(`Click the buttons below to join.`)
@@ -181,28 +181,28 @@ class Game {
             .setLabel('Show Hand')
             .setStyle(discord_js_1.ButtonStyle.Primary)
             .setEmoji('🃏'), new discord_js_1.ButtonBuilder()
-                .setCustomId('uno_table')
-                .setLabel('Table')
-                .setStyle(discord_js_1.ButtonStyle.Secondary)
-                .setEmoji('🔄'), new discord_js_1.ButtonBuilder()
-                    .setCustomId('uno_leave')
-                    .setLabel('Leave')
-                    .setStyle(discord_js_1.ButtonStyle.Danger)
-                    .setEmoji('🚪'));
+            .setCustomId('uno_table')
+            .setLabel('Table')
+            .setStyle(discord_js_1.ButtonStyle.Secondary)
+            .setEmoji('🔄'), new discord_js_1.ButtonBuilder()
+            .setCustomId('uno_leave')
+            .setLabel('Leave')
+            .setStyle(discord_js_1.ButtonStyle.Danger)
+            .setEmoji('🚪'));
         // Spec: "Title: UNO!", "Description: Turn info", "Thumbnail: Card Image"
         const topCardName = this.topCard ? `${this.topCard.color.toUpperCase()} ${this.topCard.value.toString().toUpperCase()}` : 'None';
         const cardImageUrl = this.getCardImageUrl(this.topCard);
         const embed = new discord_js_1.EmbedBuilder()
             .setTitle('UNO!')
             .setDescription(`**It is now ${currentPlayer.username}'s turn!**\n\n` +
-                `The game has begun with ${this.players.length} players!\n\n` +
-                `**The currently flipped card is: ${topCardName}**`)
+            `The game has begun with ${this.players.length} players!\n\n` +
+            `**The currently flipped card is: ${topCardName}**`)
             .setThumbnail(cardImageUrl)
             .setColor(this.topCard?.color === 'wild' ? 0x000000 :
-                this.topCard?.color === 'red' ? discord_js_1.Colors.Red :
-                    this.topCard?.color === 'blue' ? discord_js_1.Colors.Blue :
-                        this.topCard?.color === 'green' ? discord_js_1.Colors.Green :
-                            this.topCard?.color === 'yellow' ? discord_js_1.Colors.Gold : discord_js_1.Colors.White)
+            this.topCard?.color === 'red' ? discord_js_1.Colors.Red :
+                this.topCard?.color === 'blue' ? discord_js_1.Colors.Blue :
+                    this.topCard?.color === 'green' ? discord_js_1.Colors.Green :
+                        this.topCard?.color === 'yellow' ? discord_js_1.Colors.Gold : discord_js_1.Colors.White)
             .setFooter({ text: `Decks: 1(108) | Remaining: ${this.deck.count()} | Discarded: -` });
         return {
             content: '',
@@ -322,10 +322,10 @@ class Game {
             .setLabel('Draw Card')
             .setStyle(discord_js_1.ButtonStyle.Secondary)
             .setEmoji('🃏'), new discord_js_1.ButtonBuilder()
-                .setCustomId('uno_say_uno')
-                .setLabel('UNO!')
-                .setStyle(discord_js_1.ButtonStyle.Danger)
-                .setEmoji('📢'));
+            .setCustomId('uno_say_uno')
+            .setLabel('UNO!')
+            .setStyle(discord_js_1.ButtonStyle.Danger)
+            .setEmoji('📢'));
         player.hand.forEach((card, index) => {
             if (currentRow.components.length >= 5) {
                 rows.push(currentRow);

@@ -42,6 +42,11 @@ client.once(Events.ClientReady, async () => {
     setInterval(() => {
         updateLeaderboardMessage(client).catch(console.error);
     }, 60000);
+
+    // Keep Alive Ping (Every 14 Minutes)
+    setInterval(() => {
+        console.log('🔔 Keep-Alive Ping: Bot is running...');
+    }, 14 * 60 * 1000);
 });
 
 client.on(Events.InteractionCreate, async interaction => {
