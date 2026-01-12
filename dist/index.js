@@ -45,8 +45,14 @@ const ticTacToe = __importStar(require("./commands/ticTacToe"));
 const leaderboardCommand = __importStar(require("./commands/leaderboardCommand"));
 const connect4 = __importStar(require("./commands/connect4"));
 const uno = __importStar(require("./commands/uno"));
+const setupStatus = __importStar(require("./commands/setupStatus"));
+const liarsbar = __importStar(require("./commands/liarsbar"));
 const leaderboard_1 = require("./utils/leaderboard");
 const uno_1 = require("./games/uno");
+const liarsbar_1 = require("./games/liarsbar");
+const statusConfig_1 = require("./features/status/statusConfig");
+const StatusRenderer_1 = require("./features/status/StatusRenderer");
+const discord_js_2 = require("discord.js");
 const client = new discord_js_1.Client({
     intents: [
         discord_js_1.GatewayIntentBits.Guilds,
@@ -60,13 +66,37 @@ client.once(discord_js_1.Events.ClientReady, async () => {
     // Register Commands
     try {
         console.log('Started refreshing application (/) commands.');
-        await client.application?.commands.set([
+        const commands = [
             ticTacToe.data.toJSON(),
             leaderboardCommand.data.toJSON(),
             connect4.data.toJSON(),
-            uno.data.toJSON()
-        ]);
-        console.log('Successfully reloaded application (/) commands.');
+            uno.data.toJSON(),
+            setupStatus.data.toJSON(),
+            liarsbar.data.toJSON()
+        ];
+        if (config_1.CONFIG.GUILD_ID) {
+            console.log(`Registering commands to Configured Guild ID: ${config_1.CONFIG.GUILD_ID}`);
+            try {
+                await client.application?.commands.set(commands, config_1.CONFIG.GUILD_ID);
+            }
+            catch (e) {
+                console.error(`Failed to register to config guild: ${e}`);
+            }
+        }
+        // Also register to all other joined guilds to be safe (for dev purposes)
+        console.log(`Registering commands to ${client.guilds.cache.size} joined guilds...`);
+        client.guilds.cache.forEach(async (guild) => {
+            console.log(`Registering to ${guild.name} (${guild.id})...`);
+            try {
+                await guild.commands.set(commands);
+            }
+            catch (e) {
+                console.error(`Failed to register commands in ${guild.name}:`, e);
+            }
+        });
+        // Register global as fallback
+        // await client.application?.commands.set(commands);
+        console.log('Successfully requested command registration for all guilds.');
     }
     catch (error) {
         console.error(error);
@@ -76,9 +106,77 @@ client.once(discord_js_1.Events.ClientReady, async () => {
     setInterval(() => {
         (0, leaderboard_1.updateLeaderboardMessage)(client).catch(console.error);
     }, 60000);
+    // --- Status Dashboard Logic ---
+    const pingHistory = [];
+    const updateStatus = async () => {
+        const config = (0, statusConfig_1.loadStatusConfig)();
+        if (!config || !config.channelId) {
+            console.log("⚠️ No Status Channel Configured.");
+            return;
+        }
+        try {
+            const channel = await client.channels.fetch(config.channelId);
+            if (!channel) {
+                console.error(`❌ Status channel ${config.channelId} not found.`);
+                return;
+            }
+            let message;
+            try {
+                if (config.messageId) {
+                    message = await channel.messages.fetch(config.messageId);
+                }
+            }
+            catch (e) {
+                console.log("⚠️ Status message not found, creating new one.");
+            }
+            // Update Ping History
+            const ping = client.ws.ping;
+            pingHistory.push(ping);
+            if (pingHistory.length > 20)
+                pingHistory.shift();
+            // Gather Stats
+            const activeGames = {
+                uno: uno_1.getActiveGameCount ? (0, uno_1.getActiveGameCount)() : 0,
+                c4: connect4.getActiveGameCount ? connect4.getActiveGameCount() : 0,
+                ttt: ticTacToe.getActiveGameCount ? ticTacToe.getActiveGameCount() : 0
+            };
+            // Render
+            const buffer = await (0, StatusRenderer_1.renderStatusImage)(ping, pingHistory, activeGames);
+            const attachment = new discord_js_2.AttachmentBuilder(buffer, { name: 'status.png' });
+            const payload = {
+                content: `🖥️ **SYSTEM STATUS** (Updated: <t:${Math.floor(Date.now() / 1000)}:R>)`,
+                files: [attachment]
+            };
+            if (message) {
+                await message.edit(payload);
+                // console.log("✅ Status dashboard updated.");
+            }
+            else {
+                const newMessage = await channel.send(payload);
+                (0, statusConfig_1.saveStatusConfig)({
+                    channelId: config.channelId,
+                    messageId: newMessage.id
+                });
+                console.log("✅ Status dashboard created.");
+            }
+        }
+        catch (e) {
+            console.error('❌ Failed to update status dashboard:', e);
+        }
+    };
+    // Run immediately
+    updateStatus();
+    // Run every minute
+    setInterval(updateStatus, 60000);
     // Keep Alive Ping (Every 14 Minutes)
     setInterval(() => {
-        console.log('🔔 Keep-Alive Ping: Bot is running...');
+        const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+        // console.log(`🔔 Sending Keep-Alive Ping to ${url}...`);
+        http_1.default.get(url, (res) => {
+            console.log(`✅ Keep-Alive Ping successful: ${res.statusCode}`);
+        }).on('error', (err) => {
+            console.error(`❌ Keep-Alive Ping failed: ${err.message}`);
+        });
     }, 14 * 60 * 1000);
 });
 client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {
@@ -95,6 +193,12 @@ client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {
         else if (interaction.commandName === 'uno') {
             await uno.execute(interaction);
         }
+        else if (interaction.commandName === 'setup-status') {
+            await setupStatus.execute(interaction);
+        }
+        else if (interaction.commandName === 'liarsbar') {
+            await liarsbar.execute(interaction);
+        }
     }
     else if (interaction.isButton()) {
         if (interaction.customId.startsWith('ttt_')) {
@@ -105,6 +209,14 @@ client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {
         }
         else if (interaction.customId.startsWith('uno_')) {
             await (0, uno_1.handleUnoInteraction)(interaction);
+        }
+        else if (interaction.customId.startsWith('lb_')) {
+            await (0, liarsbar_1.handleLiarsBarInteraction)(interaction);
+        }
+    }
+    else if (interaction.isStringSelectMenu()) {
+        if (interaction.customId.startsWith('lb_')) {
+            await (0, liarsbar_1.handleLiarsBarInteraction)(interaction);
         }
     }
 });

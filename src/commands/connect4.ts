@@ -29,6 +29,10 @@ interface GameState {
 // Store active games: MessageID -> GameState
 const activeGames = new Map<string, GameState>();
 
+export function getActiveGameCount(): number {
+    return activeGames.size;
+}
+
 export const data = new SlashCommandBuilder()
     .setName('connect4')
     .setDescription('Start a game of Connect 4')
@@ -210,7 +214,7 @@ async function handleGameEnd(interaction: ButtonInteraction, game: GameState, la
     // If it's a win, the resultText will contain 'Wins'
     const winner = resultText.includes('Wins') ? game.currentPlayer : null;
     try {
-        recordGameResult(winner, game.player1, game.player2);
+        recordGameResult(winner, game.player1, game.player2, 'connect4');
         updateLeaderboardMessage(interaction.client).catch(console.error);
     } catch (e) {
         console.error("Failed to record stats:", e);

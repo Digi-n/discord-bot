@@ -1,10 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getActiveGameCount = getActiveGameCount;
 exports.startUnoGame = startUnoGame;
 exports.handleUnoInteraction = handleUnoInteraction;
 exports.endActiveGame = endActiveGame;
 const Game_1 = require("./Game");
 const activeGames = new Map();
+function getActiveGameCount() {
+    return activeGames.size;
+}
 async function startUnoGame(interaction) {
     const channelId = interaction.channelId;
     console.log(`Starting UNO game in channel: ${channelId}`);

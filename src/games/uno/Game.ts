@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, Message, E
 import { Player } from './Player';
 import { Deck } from './Deck';
 import { Card } from './Card';
-import { addPoints } from '../../utils/leaderboard';
+import { addPoints, recordMultiplayerGameResult, updateLeaderboardMessage } from '../../utils/leaderboard';
 
 export enum GameState {
     LOBBY,
@@ -512,6 +512,12 @@ export class Game {
             if (rankedPlayers[0]) addPoints({ id: rankedPlayers[0].id, username: rankedPlayers[0].username } as any, 10);
             if (rankedPlayers[1]) addPoints({ id: rankedPlayers[1].id, username: rankedPlayers[1].username } as any, 5);
             if (rankedPlayers[2]) addPoints({ id: rankedPlayers[2].id, username: rankedPlayers[2].username } as any, 3);
+
+            // Record Stats
+            try {
+                recordMultiplayerGameResult({ id: player.id, username: player.username } as any, this.players as any[], 'uno');
+                updateLeaderboardMessage(this.interaction.client).catch(console.error);
+            } catch (e) { console.error("Failed to update stats:", e); }
 
             const scoreboard = rankedPlayers.map((p, i) => {
                 let medal = '🎲';

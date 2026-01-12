@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.data = void 0;
+exports.getActiveGameCount = getActiveGameCount;
 exports.execute = execute;
 exports.startAgainstBot = startAgainstBot;
 exports.handleButton = handleButton;
@@ -8,6 +9,9 @@ const discord_js_1 = require("discord.js");
 const leaderboard_1 = require("../utils/leaderboard");
 // Store active games: MessageID -> GameState
 const activeGames = new Map();
+function getActiveGameCount() {
+    return activeGames.size;
+}
 exports.data = new discord_js_1.SlashCommandBuilder()
     .setName('ttt')
     .setDescription('Start a game of Tic-Tac-Toe')
@@ -174,7 +178,7 @@ async function endGame(interaction, game, winningIndices, lastSymbol) {
     game.gameOver = true;
     // Record Result
     const winner = winningIndices ? game.currentPlayer : null;
-    (0, leaderboard_1.recordGameResult)(winner, game.player1, game.player2);
+    (0, leaderboard_1.recordGameResult)(winner, game.player1, game.player2, 'ttt');
     // Update Leaderboard immediately (fire and forget)
     (0, leaderboard_1.updateLeaderboardMessage)(interaction.client).catch(console.error);
     // Don't delete from activeGames yet to allow Rematch/End

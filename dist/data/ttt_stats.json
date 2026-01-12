@@ -2,21 +2,56 @@
   "1123898877813207143": {
     "username": "ve_xii_",
     "wins": 0,
-    "games": 4,
-    "losses": 1
+    "games": 6,
+    "losses": 1,
+    "points": 5,
+    "details": {
+      "uno": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "connect4": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "ttt": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 1
+      }
+    }
   },
   "1451784798438953041": {
     "username": "THE NARCOS DEV",
-    "wins": 5,
-    "games": 6,
+    "wins": 6,
+    "games": 8,
     "losses": 0,
-    "points": 0
+    "points": 0,
+    "details": {
+      "uno": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "connect4": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "ttt": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 1
+      }
+    }
   },
   "776362812993830943": {
     "username": "infected_horde",
     "wins": 1,
-    "games": 4,
-    "losses": 3,
-    "points": 0
+    "games": 6,
+    "losses": 4,
+    "points": 10
   }
 }

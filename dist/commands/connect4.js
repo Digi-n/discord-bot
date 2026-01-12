@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.data = void 0;
+exports.getActiveGameCount = getActiveGameCount;
 exports.execute = execute;
 exports.handleButton = handleButton;
 const discord_js_1 = require("discord.js");
@@ -13,6 +14,9 @@ const P1_TOKEN = '🔴';
 const P2_TOKEN = '🟡';
 // Store active games: MessageID -> GameState
 const activeGames = new Map();
+function getActiveGameCount() {
+    return activeGames.size;
+}
 exports.data = new discord_js_1.SlashCommandBuilder()
     .setName('connect4')
     .setDescription('Start a game of Connect 4')
@@ -163,7 +167,7 @@ async function handleGameEnd(interaction, game, lastSymbol, resultText) {
     // If it's a win, the resultText will contain 'Wins'
     const winner = resultText.includes('Wins') ? game.currentPlayer : null;
     try {
-        (0, leaderboard_1.recordGameResult)(winner, game.player1, game.player2);
+        (0, leaderboard_1.recordGameResult)(winner, game.player1, game.player2, 'connect4');
         (0, leaderboard_1.updateLeaderboardMessage)(interaction.client).catch(console.error);
     }
     catch (e) {

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.loadConfig = loadConfig;
 exports.saveConfig = saveConfig;
 exports.recordGameResult = recordGameResult;
+exports.recordMultiplayerGameResult = recordMultiplayerGameResult;
 exports.addPoints = addPoints;
 exports.updateLeaderboardMessage = updateLeaderboardMessage;
 exports.getTopPlayer = getTopPlayer;
@@ -45,20 +46,47 @@ function saveConfig(config) {
 // Helper to init player
 function initPlayer(stats, user) {
     if (!stats[user.id]) {
-        stats[user.id] = { username: user.username, wins: 0, losses: 0, games: 0, points: 0 };
+        stats[user.id] = {
+            username: user.username,
+            wins: 0,
+            losses: 0,
+            games: 0,
+            points: 0,
+            details: {
+                uno: { wins: 0, losses: 0, draws: 0 },
+                connect4: { wins: 0, losses: 0, draws: 0 },
+                ttt: { wins: 0, losses: 0, draws: 0 }
+            }
+        };
     }
     else {
         // Update username
         stats[user.id].username = user.username;
-        // Backfill
+        // Backfill main stats
         if (stats[user.id].losses === undefined)
             stats[user.id].losses = 0;
         if (stats[user.id].points === undefined)
             stats[user.id].points = 0;
+        // Backfill details
+        if (!stats[user.id].details) {
+            stats[user.id].details = {
+                uno: { wins: 0, losses: 0, draws: 0 },
+                connect4: { wins: 0, losses: 0, draws: 0 },
+                ttt: { wins: 0, losses: 0, draws: 0 }
+            };
+        }
+        else {
+            if (!stats[user.id].details.uno)
+                stats[user.id].details.uno = { wins: 0, losses: 0, draws: 0 };
+            if (!stats[user.id].details.connect4)
+                stats[user.id].details.connect4 = { wins: 0, losses: 0, draws: 0 };
+            if (!stats[user.id].details.ttt)
+                stats[user.id].details.ttt = { wins: 0, losses: 0, draws: 0 };
+        }
     }
 }
-// Record Result (Legacy TTT)
-function recordGameResult(winner, player1, player2) {
+// Record Result
+function recordGameResult(winner, player1, player2, gameType) {
     const stats = loadStats();
     initPlayer(stats, player1);
     initPlayer(stats, player2);
@@ -67,11 +95,35 @@ function recordGameResult(winner, player1, player2) {
     if (winner) {
         initPlayer(stats, winner);
         stats[winner.id].wins += 1;
-        // Legacy point system for TTT? Let's just give explicit points in addPoints. 
-        // Or maybe 10 for win? User only specified UNO points. I'll leave TTT as is for now regarding points unless asked.
+        stats[winner.id].details[gameType].wins += 1;
         const loser = winner.id === player1.id ? player2 : player1;
         stats[loser.id].losses += 1;
+        stats[loser.id].details[gameType].losses += 1;
     }
+    else {
+        // Draw
+        stats[player1.id].details[gameType].draws += 1;
+        stats[player2.id].details[gameType].draws += 1;
+    }
+    saveStats(stats);
+}
+function recordMultiplayerGameResult(winner, players, gameType) {
+    const stats = loadStats();
+    players.forEach(p => {
+        initPlayer(stats, p);
+        stats[p.id].games += 1;
+    });
+    // Winner
+    initPlayer(stats, winner);
+    stats[winner.id].wins += 1;
+    stats[winner.id].details[gameType].wins += 1;
+    // Losers (everyone else)
+    players.forEach(p => {
+        if (p.id !== winner.id) {
+            stats[p.id].losses += 1;
+            stats[p.id].details[gameType].losses += 1;
+        }
+    });
     saveStats(stats);
 }
 // Generic Add Points
@@ -79,7 +131,10 @@ function addPoints(user, points) {
     const stats = loadStats();
     initPlayer(stats, user);
     stats[user.id].points += points;
-    stats[user.id].games += 1; // Assume getting points implies playing a game
+    // Note: We don't increment global games count here as it's usually done in recordGameResult,
+    // but if addPoints is called separately for other reasons, we effectively consider it part of "activity".
+    // For now, let's leave games count increment logic to game results mostly.
+    // If this is strictly for Uno points, Uno game result also calls recordGameResult.
     saveStats(stats);
 }
 // Generate ASCII Table
@@ -104,6 +159,46 @@ function generateTable(stats) {
     table += "└────┴────────────────┴────────┴───────┘";
     return "```\n" + table + "\n```";
 }
+function generateGlobalStats(stats) {
+    let uno = { wins: 0, losses: 0, draws: 0 }; // Losses track same as wins globally (1v1), but for total activity tracking:
+    // Actually, "wins" + "losses" + "draws" across all players / 2 equals total games played roughly.
+    // But user wants "Win and Lose for every game".
+    // Displaying total wins recorded implies total games won.
+    // I'll sum up all wins/losses recorded in details.
+    let ttt = { wins: 0, losses: 0, draws: 0 };
+    let c4 = { wins: 0, losses: 0, draws: 0 };
+    Object.values(stats).forEach(p => {
+        if (p.details) {
+            if (p.details.uno) {
+                uno.wins += p.details.uno.wins;
+                uno.losses += p.details.uno.losses;
+                uno.draws += p.details.uno.draws;
+            }
+            if (p.details.ttt) {
+                ttt.wins += p.details.ttt.wins;
+                ttt.losses += p.details.ttt.losses;
+                ttt.draws += p.details.ttt.draws;
+            }
+            if (p.details.connect4) {
+                c4.wins += p.details.connect4.wins;
+                c4.losses += p.details.connect4.losses;
+                c4.draws += p.details.connect4.draws;
+            }
+        }
+    });
+    // We can display total games played per category by dividing (wins+losses+draws)/2 roughly but straightforward sum is safer
+    // Actually, just listing "Total Wins" or "Total Games" might be better.
+    // User requested "Win and Lose".
+    // "UNO: 10 Wins | 10 Losses" doesn't make sense globally (it's always equal for 1v1).
+    // Maybe they meant "Your Personal Stats"? But Leaderboard usually shows global top 10.
+    // "in leaderboard above heading there should be win and lose for every game"
+    // I will assume they want GLOBAL TOTALS for the server activity.
+    // Let's format it nicely.
+    return `**Global Stats**\n` +
+        `🃏 **UNO:** ${uno.wins} Wins | ${uno.draws} Draws\n` +
+        `🔴 **Connect 4:** ${c4.wins} Wins | ${c4.draws} Draws\n` +
+        `❌ **Tic-Tac-Toe:** ${ttt.wins} Wins | ${ttt.draws} Draws\n`;
+}
 // Update Message
 async function updateLeaderboardMessage(client) {
     const config = loadConfig();
@@ -114,7 +209,8 @@ async function updateLeaderboardMessage(client) {
         return;
     const stats = loadStats();
     const table = generateTable(stats);
-    const content = `**🏆 Leaderboard**\n${table}`;
+    const globalStats = generateGlobalStats(stats);
+    const content = `**🏆 Leaderboard**\n\n${globalStats}\n${table}`;
     try {
         if (config.messageId) {
             const message = await channel.messages.fetch(config.messageId);

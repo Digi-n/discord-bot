@@ -25,6 +25,10 @@ interface GameState {
 // Store active games: MessageID -> GameState
 const activeGames = new Map<string, GameState>();
 
+export function getActiveGameCount(): number {
+    return activeGames.size;
+}
+
 export const data = new SlashCommandBuilder()
     .setName('ttt')
     .setDescription('Start a game of Tic-Tac-Toe')
@@ -228,7 +232,7 @@ async function endGame(interaction: ButtonInteraction, game: GameState, winningI
 
     // Record Result
     const winner = winningIndices ? game.currentPlayer : null;
-    recordGameResult(winner, game.player1, game.player2);
+    recordGameResult(winner, game.player1, game.player2, 'ttt');
 
     // Update Leaderboard immediately (fire and forget)
     updateLeaderboardMessage(interaction.client).catch(console.error);

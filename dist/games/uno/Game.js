@@ -445,6 +445,14 @@ class Game {
                 (0, leaderboard_1.addPoints)({ id: rankedPlayers[1].id, username: rankedPlayers[1].username }, 5);
             if (rankedPlayers[2])
                 (0, leaderboard_1.addPoints)({ id: rankedPlayers[2].id, username: rankedPlayers[2].username }, 3);
+            // Record Stats
+            try {
+                (0, leaderboard_1.recordMultiplayerGameResult)({ id: player.id, username: player.username }, this.players, 'uno');
+                (0, leaderboard_1.updateLeaderboardMessage)(this.interaction.client).catch(console.error);
+            }
+            catch (e) {
+                console.error("Failed to update stats:", e);
+            }
             const scoreboard = rankedPlayers.map((p, i) => {
                 let medal = '🎲';
                 let points = '';

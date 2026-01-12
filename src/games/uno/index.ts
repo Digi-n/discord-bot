@@ -2,6 +2,10 @@ import { Game } from './Game';
 
 const activeGames = new Map<string, Game>();
 
+export function getActiveGameCount(): number {
+    return activeGames.size;
+}
+
 export async function startUnoGame(interaction: any) {
     const channelId = interaction.channelId;
     console.log(`Starting UNO game in channel: ${channelId}`);

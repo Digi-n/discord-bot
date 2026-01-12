@@ -7,8 +7,14 @@ import * as ticTacToe from './commands/ticTacToe';
 import * as leaderboardCommand from './commands/leaderboardCommand';
 import * as connect4 from './commands/connect4';
 import * as uno from './commands/uno';
+import * as setupStatus from './commands/setupStatus';
+import * as liarsbar from './commands/liarsbar';
 import { updateLeaderboardMessage } from './utils/leaderboard';
-import { handleUnoInteraction } from './games/uno';
+import { handleUnoInteraction, getActiveGameCount as getUnoActiveGameCount } from './games/uno';
+import { handleLiarsBarInteraction } from './games/liarsbar';
+import { loadStatusConfig, saveStatusConfig } from './features/status/statusConfig';
+import { renderStatusImage } from './features/status/StatusRenderer';
+import { AttachmentBuilder, TextChannel } from 'discord.js';
 
 
 const client = new Client({
@@ -26,13 +32,36 @@ client.once(Events.ClientReady, async () => {
     // Register Commands
     try {
         console.log('Started refreshing application (/) commands.');
-        await client.application?.commands.set([
+        const commands = [
             ticTacToe.data.toJSON(),
             leaderboardCommand.data.toJSON(),
             connect4.data.toJSON(),
-            uno.data.toJSON()
-        ]);
-        console.log('Successfully reloaded application (/) commands.');
+            uno.data.toJSON(),
+            setupStatus.data.toJSON(),
+            liarsbar.data.toJSON()
+        ];
+
+        if (CONFIG.GUILD_ID) {
+            console.log(`Registering commands to Configured Guild ID: ${CONFIG.GUILD_ID}`);
+            try {
+                await client.application?.commands.set(commands, CONFIG.GUILD_ID);
+            } catch (e) { console.error(`Failed to register to config guild: ${e}`); }
+        }
+
+        // Also register to all other joined guilds to be safe (for dev purposes)
+        console.log(`Registering commands to ${client.guilds.cache.size} joined guilds...`);
+        client.guilds.cache.forEach(async (guild) => {
+            console.log(`Registering to ${guild.name} (${guild.id})...`);
+            try {
+                await guild.commands.set(commands);
+            } catch (e) {
+                console.error(`Failed to register commands in ${guild.name}:`, e);
+            }
+        });
+
+        // Register global as fallback
+        // await client.application?.commands.set(commands);
+        console.log('Successfully requested command registration for all guilds.');
     } catch (error) {
         console.error(error);
     }
@@ -44,9 +73,84 @@ client.once(Events.ClientReady, async () => {
         updateLeaderboardMessage(client).catch(console.error);
     }, 60000);
 
+    // --- Status Dashboard Logic ---
+    const pingHistory: number[] = [];
+
+    const updateStatus = async () => {
+        const config = loadStatusConfig();
+        if (!config || !config.channelId) {
+            console.log("⚠️ No Status Channel Configured.");
+            return;
+        }
+
+        try {
+            const channel = await client.channels.fetch(config.channelId) as TextChannel;
+            if (!channel) {
+                console.error(`❌ Status channel ${config.channelId} not found.`);
+                return;
+            }
+
+            let message;
+            try {
+                if (config.messageId) {
+                    message = await channel.messages.fetch(config.messageId);
+                }
+            } catch (e) {
+                console.log("⚠️ Status message not found, creating new one.");
+            }
+
+            // Update Ping History
+            const ping = client.ws.ping;
+            pingHistory.push(ping);
+            if (pingHistory.length > 20) pingHistory.shift();
+
+            // Gather Stats
+            const activeGames = {
+                uno: getUnoActiveGameCount ? getUnoActiveGameCount() : 0,
+                c4: connect4.getActiveGameCount ? connect4.getActiveGameCount() : 0,
+                ttt: ticTacToe.getActiveGameCount ? ticTacToe.getActiveGameCount() : 0
+            };
+
+            // Render
+            const buffer = await renderStatusImage(ping, pingHistory, activeGames);
+            const attachment = new AttachmentBuilder(buffer, { name: 'status.png' });
+            const payload = {
+                content: `🖥️ **SYSTEM STATUS** (Updated: <t:${Math.floor(Date.now() / 1000)}:R>)`,
+                files: [attachment]
+            };
+
+            if (message) {
+                await message.edit(payload);
+                // console.log("✅ Status dashboard updated.");
+            } else {
+                const newMessage = await channel.send(payload);
+                saveStatusConfig({
+                    channelId: config.channelId,
+                    messageId: newMessage.id
+                });
+                console.log("✅ Status dashboard created.");
+            }
+        } catch (e) {
+            console.error('❌ Failed to update status dashboard:', e);
+        }
+    };
+
+    // Run immediately
+    updateStatus();
+
+    // Run every minute
+    setInterval(updateStatus, 60000);
+
     // Keep Alive Ping (Every 14 Minutes)
     setInterval(() => {
-        console.log('🔔 Keep-Alive Ping: Bot is running...');
+        const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+        // console.log(`🔔 Sending Keep-Alive Ping to ${url}...`);
+
+        http.get(url, (res) => {
+            console.log(`✅ Keep-Alive Ping successful: ${res.statusCode}`);
+        }).on('error', (err) => {
+            console.error(`❌ Keep-Alive Ping failed: ${err.message}`);
+        });
     }, 14 * 60 * 1000);
 });
 
@@ -60,6 +164,10 @@ client.on(Events.InteractionCreate, async interaction => {
             await connect4.execute(interaction);
         } else if (interaction.commandName === 'uno') {
             await uno.execute(interaction);
+        } else if (interaction.commandName === 'setup-status') {
+            await setupStatus.execute(interaction);
+        } else if (interaction.commandName === 'liarsbar') {
+            await liarsbar.execute(interaction);
         }
     } else if (interaction.isButton()) {
         if (interaction.customId.startsWith('ttt_')) {
@@ -68,6 +176,12 @@ client.on(Events.InteractionCreate, async interaction => {
             await connect4.handleButton(interaction);
         } else if (interaction.customId.startsWith('uno_')) {
             await handleUnoInteraction(interaction);
+        } else if (interaction.customId.startsWith('lb_')) {
+            await handleLiarsBarInteraction(interaction);
+        }
+    } else if (interaction.isStringSelectMenu()) {
+        if (interaction.customId.startsWith('lb_')) {
+            await handleLiarsBarInteraction(interaction);
         }
     }
 
