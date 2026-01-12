@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Events } from 'discord.js';
+import http from 'http';
 import { CONFIG } from './config';
 import { initScheduler } from './scheduler';
 import * as ticTacToe from './commands/ticTacToe';
@@ -85,3 +86,12 @@ if (!CONFIG.TOKEN) {
     throw new Error("❌ DISCORD_TOKEN is missing in .env file");
 }
 client.login(CONFIG.TOKEN);
+
+const port = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.write('Bot is alive!');
+    res.end();
+}).listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+});
