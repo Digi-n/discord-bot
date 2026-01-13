@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Events, MessageFlags } from 'discord.js';
 import http from 'http';
+import https from 'https';
 import { CONFIG } from './config';
 import { initScheduler } from './scheduler';
 import * as ticTacToe from './commands/ticTacToe';
@@ -146,14 +147,17 @@ client.once(Events.ClientReady, async () => {
     process.on('SIGTERM', shutdown);
 
     // Keep Alive Ping (Every 14 Minutes)
+    // Keep Alive Ping (Every 5 Minutes)
     setInterval(() => {
         const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
-        http.get(url, (res) => {
+        const protocol = url.startsWith('https') ? https : http;
+
+        protocol.get(url, (res) => {
             console.log(`✅ Keep-Alive Ping successful: ${res.statusCode}`);
         }).on('error', (err) => {
             console.error(`❌ Keep-Alive Ping failed: ${err.message}`);
         });
-    }, 14 * 60 * 1000);
+    }, 5 * 60 * 1000);
 });
 
 client.on(Events.InteractionCreate, async interaction => {

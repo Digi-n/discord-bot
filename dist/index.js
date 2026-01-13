@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
 const discord_js_1 = require("discord.js");
 const http_1 = __importDefault(require("http"));
+const https_1 = __importDefault(require("https"));
 const config_1 = require("./config");
 const scheduler_1 = require("./scheduler");
 const ticTacToe = __importStar(require("./commands/ticTacToe"));
@@ -174,14 +175,16 @@ client.once(discord_js_1.Events.ClientReady, async () => {
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
     // Keep Alive Ping (Every 14 Minutes)
+    // Keep Alive Ping (Every 5 Minutes)
     setInterval(() => {
         const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
-        http_1.default.get(url, (res) => {
+        const protocol = url.startsWith('https') ? https_1.default : http_1.default;
+        protocol.get(url, (res) => {
             console.log(`✅ Keep-Alive Ping successful: ${res.statusCode}`);
         }).on('error', (err) => {
             console.error(`❌ Keep-Alive Ping failed: ${err.message}`);
         });
-    }, 14 * 60 * 1000);
+    }, 5 * 60 * 1000);
 });
 client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
