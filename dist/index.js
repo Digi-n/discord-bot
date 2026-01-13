@@ -47,9 +47,13 @@ const connect4 = __importStar(require("./commands/connect4"));
 const uno = __importStar(require("./commands/uno"));
 const setupStatus = __importStar(require("./commands/setupStatus"));
 const liarsbar = __importStar(require("./commands/liarsbar"));
+const match = __importStar(require("./commands/match"));
+const donkey = __importStar(require("./commands/donkeyCmd"));
 const leaderboard_1 = require("./utils/leaderboard");
 const uno_1 = require("./games/uno");
 const liarsbar_1 = require("./games/liarsbar");
+const index_1 = require("./games/match/index");
+const index_2 = require("./games/donkey/index");
 const statusConfig_1 = require("./features/status/statusConfig");
 const StatusRenderer_1 = require("./features/status/StatusRenderer");
 const discord_js_2 = require("discord.js");
@@ -62,6 +66,7 @@ const client = new discord_js_1.Client({
 });
 client.once(discord_js_1.Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user?.tag}`);
+    client.user?.setActivity('Kazhutha (Donkey) ♠️', { type: 0 }); // ActivityType.Playing = 0
     (0, scheduler_1.initScheduler)(client);
     // Register Commands
     try {
@@ -72,7 +77,9 @@ client.once(discord_js_1.Events.ClientReady, async () => {
             connect4.data.toJSON(),
             uno.data.toJSON(),
             setupStatus.data.toJSON(),
-            liarsbar.data.toJSON()
+            liarsbar.data.toJSON(),
+            match.data.toJSON(),
+            donkey.data.toJSON()
         ];
         if (config_1.CONFIG.GUILD_ID) {
             console.log(`Registering commands to Configured Guild ID: ${config_1.CONFIG.GUILD_ID}`);
@@ -94,41 +101,33 @@ client.once(discord_js_1.Events.ClientReady, async () => {
                 console.error(`Failed to register commands in ${guild.name}:`, e);
             }
         });
-        // Register global as fallback
-        // await client.application?.commands.set(commands);
         console.log('Successfully requested command registration for all guilds.');
     }
     catch (error) {
         console.error(error);
     }
     // Start Leaderboard Update Loop (Every 60 seconds)
-    (0, leaderboard_1.updateLeaderboardMessage)(client).catch(() => { }); // Ignore error if not initialized
+    (0, leaderboard_1.updateLeaderboardMessage)(client).catch(() => { });
     setInterval(() => {
         (0, leaderboard_1.updateLeaderboardMessage)(client).catch(console.error);
     }, 60000);
     // --- Status Dashboard Logic ---
     const pingHistory = [];
-    const updateStatus = async () => {
+    const updateStatus = async (isOffline = false) => {
         const config = (0, statusConfig_1.loadStatusConfig)();
-        if (!config || !config.channelId) {
-            console.log("⚠️ No Status Channel Configured.");
+        if (!config || !config.channelId)
             return;
-        }
         try {
             const channel = await client.channels.fetch(config.channelId);
-            if (!channel) {
-                console.error(`❌ Status channel ${config.channelId} not found.`);
+            if (!channel)
                 return;
-            }
             let message;
             try {
                 if (config.messageId) {
                     message = await channel.messages.fetch(config.messageId);
                 }
             }
-            catch (e) {
-                console.log("⚠️ Status message not found, creating new one.");
-            }
+            catch (e) { }
             // Update Ping History
             const ping = client.ws.ping;
             pingHistory.push(ping);
@@ -141,7 +140,7 @@ client.once(discord_js_1.Events.ClientReady, async () => {
                 ttt: ticTacToe.getActiveGameCount ? ticTacToe.getActiveGameCount() : 0
             };
             // Render
-            const buffer = await (0, StatusRenderer_1.renderStatusImage)(ping, pingHistory, activeGames);
+            const buffer = await (0, StatusRenderer_1.renderStatusImage)(ping, pingHistory, activeGames, isOffline);
             const attachment = new discord_js_2.AttachmentBuilder(buffer, { name: 'status.png' });
             const payload = {
                 content: `🖥️ **SYSTEM STATUS** (Updated: <t:${Math.floor(Date.now() / 1000)}:R>)`,
@@ -149,29 +148,34 @@ client.once(discord_js_1.Events.ClientReady, async () => {
             };
             if (message) {
                 await message.edit(payload);
-                // console.log("✅ Status dashboard updated.");
             }
-            else {
+            else if (!isOffline) {
                 const newMessage = await channel.send(payload);
                 (0, statusConfig_1.saveStatusConfig)({
                     channelId: config.channelId,
                     messageId: newMessage.id
                 });
-                console.log("✅ Status dashboard created.");
             }
         }
         catch (e) {
             console.error('❌ Failed to update status dashboard:', e);
         }
     };
-    // Run immediately
     updateStatus();
-    // Run every minute
-    setInterval(updateStatus, 60000);
+    const statusInterval = setInterval(() => updateStatus(false), 60000);
+    // Graceful Shutdown Hook
+    const shutdown = async () => {
+        console.log("🛑 Shutting down...");
+        clearInterval(statusInterval);
+        await updateStatus(true);
+        console.log("✅ Offline status set. Bye!");
+        process.exit(0);
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
     // Keep Alive Ping (Every 14 Minutes)
     setInterval(() => {
         const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
-        // console.log(`🔔 Sending Keep-Alive Ping to ${url}...`);
         http_1.default.get(url, (res) => {
             console.log(`✅ Keep-Alive Ping successful: ${res.statusCode}`);
         }).on('error', (err) => {
@@ -199,6 +203,12 @@ client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {
         else if (interaction.commandName === 'liarsbar') {
             await liarsbar.execute(interaction);
         }
+        else if (interaction.commandName === 'match') {
+            await match.execute(interaction);
+        }
+        else if (interaction.commandName === 'donkey') {
+            await donkey.execute(interaction);
+        }
     }
     else if (interaction.isButton()) {
         if (interaction.customId.startsWith('ttt_')) {
@@ -213,10 +223,37 @@ client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {
         else if (interaction.customId.startsWith('lb_')) {
             await (0, liarsbar_1.handleLiarsBarInteraction)(interaction);
         }
+        else if (interaction.customId.startsWith('lb_')) {
+            await (0, liarsbar_1.handleLiarsBarInteraction)(interaction);
+        }
+        else if (interaction.customId.startsWith('donkey_')) {
+            const donkeyHandled = await (0, index_2.handleInteraction)(interaction);
+            if (!donkeyHandled && !interaction.replied) {
+                await interaction.reply({ content: '❌ No active game found.', flags: discord_js_1.MessageFlags.Ephemeral });
+            }
+        }
+        else if (interaction.customId.startsWith('match_')) {
+            const matchHandled = await (0, index_1.handleInteraction)(interaction);
+            if (!matchHandled && !interaction.replied) {
+                await interaction.reply({ content: '❌ No active game found.', flags: discord_js_1.MessageFlags.Ephemeral });
+            }
+        }
     }
     else if (interaction.isStringSelectMenu()) {
         if (interaction.customId.startsWith('lb_')) {
             await (0, liarsbar_1.handleLiarsBarInteraction)(interaction);
+        }
+        else if (interaction.customId.startsWith('donkey_')) {
+            const donkeyHandled = await (0, index_2.handleInteraction)(interaction);
+            if (!donkeyHandled && !interaction.replied) {
+                await interaction.reply({ content: '❌ No active game found.', flags: discord_js_1.MessageFlags.Ephemeral });
+            }
+        }
+        else if (interaction.customId.startsWith('match_')) {
+            const matchHandled = await (0, index_1.handleInteraction)(interaction);
+            if (!matchHandled && !interaction.replied) {
+                await interaction.reply({ content: '❌ No active game found.', flags: discord_js_1.MessageFlags.Ephemeral });
+            }
         }
     }
 });

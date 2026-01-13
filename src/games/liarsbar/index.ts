@@ -1,7 +1,7 @@
 import {
     ButtonInteraction, ChatInputCommandInteraction,
     ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction,
-    ComponentType, MessageFlags
+    ComponentType, MessageFlags, ButtonBuilder
 } from 'discord.js';
 import { Game } from './Game';
 import { GameState } from './Constants';
@@ -97,6 +97,12 @@ export async function handleLiarsBarInteraction(interaction: ButtonInteraction |
             });
         }
         else if (action === 'lb_liar') {
+            // Check if winner
+            if (game.winners.some(w => w.id === interaction.user.id)) {
+                await interaction.reply({ content: '🏆 You have already won! Sit back and watch.', flags: MessageFlags.Ephemeral });
+                return;
+            }
+
             // Check if alive
             const p = game.players.find(p => p.id === interaction.user.id);
             if (!p || !p.active) {
@@ -110,8 +116,24 @@ export async function handleLiarsBarInteraction(interaction: ButtonInteraction |
                 return;
             }
 
-            await interaction.reply({ content: '🚨 **CALLED LIAR!**' });
+            await interaction.reply({ content: '🚨 **CALLED LIAR!**', flags: MessageFlags.Ephemeral });
             game.endBluffPhase(true, p);
+        }
+        else if (action === 'lb_end_game') {
+            if (game.players[0].id !== interaction.user.id) {
+                await interaction.reply({ content: '❌ Only the host can end the game.', flags: MessageFlags.Ephemeral });
+                return;
+            }
+
+            game.state = GameState.GAME_OVER;
+            // Update UI to show ended
+            const embed = new ActionRowBuilder<ButtonBuilder>(); // Empty components
+            try {
+                if (game.message) await game.message.edit({ content: '🛑 **Game Ended by Host**', components: [] });
+            } catch (e) { }
+
+            activeGames.delete(interaction.channelId);
+            await interaction.reply({ content: '🛑 Game Ended.', flags: MessageFlags.Ephemeral });
         }
     }
     else if (interaction.isStringSelectMenu() && interaction.customId === 'lb_select_cards') {

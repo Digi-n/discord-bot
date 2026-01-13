@@ -23,7 +23,7 @@ interface GameStats {
     ttt: number;
 }
 
-export async function renderStatusImage(ping: number, history: number[], games: GameStats) {
+export async function renderStatusImage(ping: number, history: number[], games: GameStats, isOffline: boolean = false) {
     const w = 400;
     const h = 200;
     const canvas = createCanvas(w, h);
@@ -32,13 +32,13 @@ export async function renderStatusImage(ping: number, history: number[], games: 
     // --- Colors (Cyberpunk Palette) ---
     const colors = {
         bg: '#050510',
-        grid: '#1a1a40',
-        text: '#00ffee',
-        accent: '#ff00ff',
+        grid: isOffline ? '#401a1a' : '#1a1a40',
+        text: isOffline ? '#ff0000' : '#00ffee',
+        accent: isOffline ? '#ff0000' : '#ff00ff',
         success: '#00ff41',
         danger: '#ff0055',
-        graphFill: 'rgba(0, 255, 238, 0.2)',
-        graphLine: '#00ffee'
+        graphFill: isOffline ? 'rgba(255, 0, 0, 0.2)' : 'rgba(0, 255, 238, 0.2)',
+        graphLine: isOffline ? '#ff0000' : '#00ffee'
     };
 
     // 1. Background Fill
@@ -66,10 +66,10 @@ export async function renderStatusImage(ping: number, history: number[], games: 
     // 3. Header
     ctx.fillStyle = colors.text;
     ctx.font = 'bold 20px "Courier New"';
-    ctx.fillText('⚡ SYSTEM MONITOR', 15, 30);
+    ctx.fillText(isOffline ? '🔌 SYSTEM OFFLINE' : '⚡ SYSTEM MONITOR', 15, 30);
 
     // Uptime Badge (Right aligned)
-    const uptimeText = `UPTIME: ${formatUptime(process.uptime())}`;
+    const uptimeText = isOffline ? "DISCONNECTED" : `UPTIME: ${formatUptime(process.uptime())}`;
     ctx.font = '12px "Courier New"';
     ctx.textAlign = 'right';
     ctx.fillStyle = colors.accent;

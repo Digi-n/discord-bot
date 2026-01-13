@@ -2,9 +2,9 @@
   "1123898877813207143": {
     "username": "ve_xii_",
     "wins": 0,
-    "games": 6,
-    "losses": 1,
-    "points": 5,
+    "games": 11,
+    "losses": 6,
+    "points": -20,
     "details": {
       "uno": {
         "wins": 0,
@@ -20,15 +20,88 @@
         "wins": 0,
         "losses": 0,
         "draws": 1
+      },
+      "liarsbar": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "donkey": {
+        "wins": 0,
+        "losses": 5,
+        "draws": 0
       }
     }
   },
   "1451784798438953041": {
     "username": "THE NARCOS DEV",
-    "wins": 6,
-    "games": 8,
+    "wins": 7,
+    "games": 9,
     "losses": 0,
-    "points": 0,
+    "points": 10,
+    "details": {
+      "uno": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "connect4": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "ttt": {
+        "wins": 1,
+        "losses": 0,
+        "draws": 1
+      },
+      "liarsbar": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      }
+    }
+  },
+  "776362812993830943": {
+    "username": "infected_horde",
+    "wins": 6,
+    "games": 12,
+    "losses": 5,
+    "points": 55,
+    "details": {
+      "uno": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "connect4": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "ttt": {
+        "wins": 0,
+        "losses": 1,
+        "draws": 0
+      },
+      "liarsbar": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "donkey": {
+        "wins": 5,
+        "losses": 0,
+        "draws": 0
+      }
+    }
+  },
+  "1452181111789715481": {
+    "username": "hell053970",
+    "wins": 0,
+    "losses": 5,
+    "games": 5,
+    "points": -25,
     "details": {
       "uno": {
         "wins": 0,
@@ -43,15 +116,18 @@
       "ttt": {
         "wins": 0,
         "losses": 0,
-        "draws": 1
+        "draws": 0
+      },
+      "liarsbar": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 0
+      },
+      "donkey": {
+        "wins": 0,
+        "losses": 5,
+        "draws": 0
       }
     }
-  },
-  "776362812993830943": {
-    "username": "infected_horde",
-    "wins": 1,
-    "games": 6,
-    "losses": 4,
-    "points": 10
   }
 }

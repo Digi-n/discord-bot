@@ -7,6 +7,7 @@ exports.loadConfig = loadConfig;
 exports.saveConfig = saveConfig;
 exports.recordGameResult = recordGameResult;
 exports.recordMultiplayerGameResult = recordMultiplayerGameResult;
+exports.recordRankedGameResult = recordRankedGameResult;
 exports.addPoints = addPoints;
 exports.updateLeaderboardMessage = updateLeaderboardMessage;
 exports.getTopPlayer = getTopPlayer;
@@ -55,24 +56,24 @@ function initPlayer(stats, user) {
             details: {
                 uno: { wins: 0, losses: 0, draws: 0 },
                 connect4: { wins: 0, losses: 0, draws: 0 },
-                ttt: { wins: 0, losses: 0, draws: 0 }
+                ttt: { wins: 0, losses: 0, draws: 0 },
+                liarsbar: { wins: 0, losses: 0, draws: 0 },
+                donkey: { wins: 0, losses: 0, draws: 0 },
+                match: { wins: 0, losses: 0, draws: 0 }
             }
         };
     }
     else {
-        // Update username
-        stats[user.id].username = user.username;
-        // Backfill main stats
-        if (stats[user.id].losses === undefined)
-            stats[user.id].losses = 0;
-        if (stats[user.id].points === undefined)
-            stats[user.id].points = 0;
+        // ...
         // Backfill details
         if (!stats[user.id].details) {
             stats[user.id].details = {
                 uno: { wins: 0, losses: 0, draws: 0 },
                 connect4: { wins: 0, losses: 0, draws: 0 },
-                ttt: { wins: 0, losses: 0, draws: 0 }
+                ttt: { wins: 0, losses: 0, draws: 0 },
+                liarsbar: { wins: 0, losses: 0, draws: 0 },
+                donkey: { wins: 0, losses: 0, draws: 0 },
+                match: { wins: 0, losses: 0, draws: 0 }
             };
         }
         else {
@@ -82,6 +83,12 @@ function initPlayer(stats, user) {
                 stats[user.id].details.connect4 = { wins: 0, losses: 0, draws: 0 };
             if (!stats[user.id].details.ttt)
                 stats[user.id].details.ttt = { wins: 0, losses: 0, draws: 0 };
+            if (!stats[user.id].details.liarsbar)
+                stats[user.id].details.liarsbar = { wins: 0, losses: 0, draws: 0 };
+            if (!stats[user.id].details.donkey)
+                stats[user.id].details.donkey = { wins: 0, losses: 0, draws: 0 };
+            if (!stats[user.id].details.match)
+                stats[user.id].details.match = { wins: 0, losses: 0, draws: 0 };
         }
     }
 }
@@ -96,9 +103,13 @@ function recordGameResult(winner, player1, player2, gameType) {
         initPlayer(stats, winner);
         stats[winner.id].wins += 1;
         stats[winner.id].details[gameType].wins += 1;
+        // Points: +10 for Win
+        stats[winner.id].points += 10;
         const loser = winner.id === player1.id ? player2 : player1;
         stats[loser.id].losses += 1;
         stats[loser.id].details[gameType].losses += 1;
+        // Points: -5 for Lose
+        stats[loser.id].points -= 5;
     }
     else {
         // Draw
@@ -117,12 +128,34 @@ function recordMultiplayerGameResult(winner, players, gameType) {
     initPlayer(stats, winner);
     stats[winner.id].wins += 1;
     stats[winner.id].details[gameType].wins += 1;
+    stats[winner.id].points += 10;
     // Losers (everyone else)
     players.forEach(p => {
         if (p.id !== winner.id) {
             stats[p.id].losses += 1;
             stats[p.id].details[gameType].losses += 1;
+            stats[p.id].points -= 5;
         }
+    });
+    saveStats(stats);
+}
+function recordRankedGameResult(winners, losers, gameType) {
+    const stats = loadStats();
+    // Process Winners
+    winners.forEach(w => {
+        initPlayer(stats, w);
+        stats[w.id].games += 1;
+        stats[w.id].wins += 1;
+        stats[w.id].details[gameType].wins += 1;
+        stats[w.id].points += 10;
+    });
+    // Process Losers
+    losers.forEach(l => {
+        initPlayer(stats, l);
+        stats[l.id].games += 1;
+        stats[l.id].losses += 1;
+        stats[l.id].details[gameType].losses += 1;
+        stats[l.id].points -= 5;
     });
     saveStats(stats);
 }
@@ -131,10 +164,6 @@ function addPoints(user, points) {
     const stats = loadStats();
     initPlayer(stats, user);
     stats[user.id].points += points;
-    // Note: We don't increment global games count here as it's usually done in recordGameResult,
-    // but if addPoints is called separately for other reasons, we effectively consider it part of "activity".
-    // For now, let's leave games count increment logic to game results mostly.
-    // If this is strictly for Uno points, Uno game result also calls recordGameResult.
     saveStats(stats);
 }
 // Generate ASCII Table
@@ -142,62 +171,50 @@ function generateTable(stats) {
     const players = Object.values(stats)
         .sort((a, b) => (b.points || 0) - (a.points || 0) || b.wins - a.wins) // Sort by Points DESC
         .slice(0, 10);
-    //     ┌────┬────────────────┬────────┬───────┐
-    //     │ #  │ Player         │ Points │ Games │
-    //     ├────┼────────────────┼────────┼───────┤
-    let table = "┌────┬────────────────┬────────┬───────┐\n";
-    table += "│ #  │ Player         │ Points │ Games │\n";
-    table += "├────┼────────────────┼────────┼───────┤\n";
+    // Column Widths (Content + Padding):
+    // #        : 2 (Content) + 2 (Pad) = 4
+    // Player   : 14 (Content) + 2 (Pad) = 16
+    // Points   : 6 (Content) + 2 (Pad) = 8
+    // W/L      : 8 (Content) + 2 (Pad) = 10 (Allows "999 / 99" = 8 chars)
+    // Total    : 10 (Content) + 2 (Pad) = 12
+    // Header: 
+    // #  (4)
+    // Player         (14)
+    //  Points (6)
+    //  TTT (8) | C4 (8) | UNO (8) | LB (8) | DK (8) | MT (8) | Total (10)
+    // Total len: 4+14+6+8*6+10 + borders ~ 90. OK.
+    let table = "┌────┬────────────────┬────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬────────────┐\n";
+    table += "│ #  │ Player         │ Points │ TTT W/L  │  C4 W/L  │ UNO W/L  │  LB W/L  │  DK W/L  │  MT W/L  │ Total Games│\n";
+    table += "├────┼────────────────┼────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼────────────┤\n";
     players.forEach((p, index) => {
         const rank = (index + 1).toString().padEnd(2);
-        let name = p.username.length > 14 ? p.username.substring(0, 11) + '...' : p.username;
-        name = name.padEnd(14);
+        // Player: Max 14 chars.
+        let name = p.username.length > 14 ? p.username.substring(0, 14) : p.username;
+        const paddedName = name.padEnd(14);
         const points = (p.points || 0).toString().padEnd(6);
-        const games = p.games.toString().padEnd(5);
-        table += `│ ${rank} │ ${name} │ ${points} │ ${games} │\n`;
+        const tttWins = p.details?.ttt?.wins || 0;
+        const tttLosses = p.details?.ttt?.losses || 0;
+        const ttt = `${tttWins} / ${tttLosses}`.padEnd(8);
+        const c4Wins = p.details?.connect4?.wins || 0;
+        const c4Losses = p.details?.connect4?.losses || 0;
+        const c4 = `${c4Wins} / ${c4Losses}`.padEnd(8);
+        const unoWins = p.details?.uno?.wins || 0;
+        const unoLosses = p.details?.uno?.losses || 0;
+        const uno = `${unoWins} / ${unoLosses}`.padEnd(8);
+        const lbWins = p.details?.liarsbar?.wins || 0;
+        const lbLosses = p.details?.liarsbar?.losses || 0;
+        const lb = `${lbWins} / ${lbLosses}`.padEnd(8);
+        const dkWins = p.details?.donkey?.wins || 0;
+        const dkLosses = p.details?.donkey?.losses || 0;
+        const dk = `${dkWins} / ${dkLosses}`.padEnd(8);
+        const mtWins = p.details?.match?.wins || 0;
+        const mtLosses = p.details?.match?.losses || 0;
+        const mt = `${mtWins} / ${mtLosses}`.padEnd(8);
+        const total = p.games.toString().padEnd(10);
+        table += `│ ${rank} │ ${paddedName} │ ${points} │ ${ttt} │ ${c4} │ ${uno} │ ${lb} │ ${dk} │ ${mt} │ ${total} │\n`;
     });
-    table += "└────┴────────────────┴────────┴───────┘";
+    table += "└────┴────────────────┴────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴────────────┘";
     return "```\n" + table + "\n```";
-}
-function generateGlobalStats(stats) {
-    let uno = { wins: 0, losses: 0, draws: 0 }; // Losses track same as wins globally (1v1), but for total activity tracking:
-    // Actually, "wins" + "losses" + "draws" across all players / 2 equals total games played roughly.
-    // But user wants "Win and Lose for every game".
-    // Displaying total wins recorded implies total games won.
-    // I'll sum up all wins/losses recorded in details.
-    let ttt = { wins: 0, losses: 0, draws: 0 };
-    let c4 = { wins: 0, losses: 0, draws: 0 };
-    Object.values(stats).forEach(p => {
-        if (p.details) {
-            if (p.details.uno) {
-                uno.wins += p.details.uno.wins;
-                uno.losses += p.details.uno.losses;
-                uno.draws += p.details.uno.draws;
-            }
-            if (p.details.ttt) {
-                ttt.wins += p.details.ttt.wins;
-                ttt.losses += p.details.ttt.losses;
-                ttt.draws += p.details.ttt.draws;
-            }
-            if (p.details.connect4) {
-                c4.wins += p.details.connect4.wins;
-                c4.losses += p.details.connect4.losses;
-                c4.draws += p.details.connect4.draws;
-            }
-        }
-    });
-    // We can display total games played per category by dividing (wins+losses+draws)/2 roughly but straightforward sum is safer
-    // Actually, just listing "Total Wins" or "Total Games" might be better.
-    // User requested "Win and Lose".
-    // "UNO: 10 Wins | 10 Losses" doesn't make sense globally (it's always equal for 1v1).
-    // Maybe they meant "Your Personal Stats"? But Leaderboard usually shows global top 10.
-    // "in leaderboard above heading there should be win and lose for every game"
-    // I will assume they want GLOBAL TOTALS for the server activity.
-    // Let's format it nicely.
-    return `**Global Stats**\n` +
-        `🃏 **UNO:** ${uno.wins} Wins | ${uno.draws} Draws\n` +
-        `🔴 **Connect 4:** ${c4.wins} Wins | ${c4.draws} Draws\n` +
-        `❌ **Tic-Tac-Toe:** ${ttt.wins} Wins | ${ttt.draws} Draws\n`;
 }
 // Update Message
 async function updateLeaderboardMessage(client) {
@@ -209,8 +226,7 @@ async function updateLeaderboardMessage(client) {
         return;
     const stats = loadStats();
     const table = generateTable(stats);
-    const globalStats = generateGlobalStats(stats);
-    const content = `**🏆 Leaderboard**\n\n${globalStats}\n${table}`;
+    const content = `**🏆 Global Leaderboard**\n${table}`;
     try {
         if (config.messageId) {
             const message = await channel.messages.fetch(config.messageId);
@@ -223,7 +239,6 @@ async function updateLeaderboardMessage(client) {
     catch (error) {
         console.log("Could not find leaderboard message, creating new one.");
     }
-    // Create new if fetch failed
     const newMessage = await channel.send(content);
     saveConfig({ channelId: config.channelId, messageId: newMessage.id });
 }

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, Events } from 'discord.js';
+import { Client, GatewayIntentBits, Events, MessageFlags } from 'discord.js';
 import http from 'http';
 import { CONFIG } from './config';
 import { initScheduler } from './scheduler';
@@ -9,9 +9,13 @@ import * as connect4 from './commands/connect4';
 import * as uno from './commands/uno';
 import * as setupStatus from './commands/setupStatus';
 import * as liarsbar from './commands/liarsbar';
+import * as match from './commands/match';
+import * as donkey from './commands/donkeyCmd';
 import { updateLeaderboardMessage } from './utils/leaderboard';
 import { handleUnoInteraction, getActiveGameCount as getUnoActiveGameCount } from './games/uno';
 import { handleLiarsBarInteraction } from './games/liarsbar';
+import { handleInteraction as handleMatchInteraction } from './games/match/index';
+import { handleInteraction as handleDonkeyInteraction } from './games/donkey/index';
 import { loadStatusConfig, saveStatusConfig } from './features/status/statusConfig';
 import { renderStatusImage } from './features/status/StatusRenderer';
 import { AttachmentBuilder, TextChannel } from 'discord.js';
@@ -27,6 +31,7 @@ const client = new Client({
 
 client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user?.tag}`);
+    client.user?.setActivity('Kazhutha (Donkey) ♠️', { type: 0 }); // ActivityType.Playing = 0
     initScheduler(client);
 
     // Register Commands
@@ -38,7 +43,9 @@ client.once(Events.ClientReady, async () => {
             connect4.data.toJSON(),
             uno.data.toJSON(),
             setupStatus.data.toJSON(),
-            liarsbar.data.toJSON()
+            liarsbar.data.toJSON(),
+            match.data.toJSON(),
+            donkey.data.toJSON()
         ];
 
         if (CONFIG.GUILD_ID) {
@@ -59,15 +66,13 @@ client.once(Events.ClientReady, async () => {
             }
         });
 
-        // Register global as fallback
-        // await client.application?.commands.set(commands);
         console.log('Successfully requested command registration for all guilds.');
     } catch (error) {
         console.error(error);
     }
 
     // Start Leaderboard Update Loop (Every 60 seconds)
-    updateLeaderboardMessage(client).catch(() => { }); // Ignore error if not initialized
+    updateLeaderboardMessage(client).catch(() => { });
 
     setInterval(() => {
         updateLeaderboardMessage(client).catch(console.error);
@@ -76,28 +81,20 @@ client.once(Events.ClientReady, async () => {
     // --- Status Dashboard Logic ---
     const pingHistory: number[] = [];
 
-    const updateStatus = async () => {
+    const updateStatus = async (isOffline: boolean = false) => {
         const config = loadStatusConfig();
-        if (!config || !config.channelId) {
-            console.log("⚠️ No Status Channel Configured.");
-            return;
-        }
+        if (!config || !config.channelId) return;
 
         try {
             const channel = await client.channels.fetch(config.channelId) as TextChannel;
-            if (!channel) {
-                console.error(`❌ Status channel ${config.channelId} not found.`);
-                return;
-            }
+            if (!channel) return;
 
             let message;
             try {
                 if (config.messageId) {
                     message = await channel.messages.fetch(config.messageId);
                 }
-            } catch (e) {
-                console.log("⚠️ Status message not found, creating new one.");
-            }
+            } catch (e) { }
 
             // Update Ping History
             const ping = client.ws.ping;
@@ -112,7 +109,7 @@ client.once(Events.ClientReady, async () => {
             };
 
             // Render
-            const buffer = await renderStatusImage(ping, pingHistory, activeGames);
+            const buffer = await renderStatusImage(ping, pingHistory, activeGames, isOffline);
             const attachment = new AttachmentBuilder(buffer, { name: 'status.png' });
             const payload = {
                 content: `🖥️ **SYSTEM STATUS** (Updated: <t:${Math.floor(Date.now() / 1000)}:R>)`,
@@ -121,31 +118,36 @@ client.once(Events.ClientReady, async () => {
 
             if (message) {
                 await message.edit(payload);
-                // console.log("✅ Status dashboard updated.");
-            } else {
+            } else if (!isOffline) {
                 const newMessage = await channel.send(payload);
                 saveStatusConfig({
                     channelId: config.channelId,
                     messageId: newMessage.id
                 });
-                console.log("✅ Status dashboard created.");
             }
         } catch (e) {
             console.error('❌ Failed to update status dashboard:', e);
         }
     };
 
-    // Run immediately
     updateStatus();
+    const statusInterval = setInterval(() => updateStatus(false), 60000);
 
-    // Run every minute
-    setInterval(updateStatus, 60000);
+    // Graceful Shutdown Hook
+    const shutdown = async () => {
+        console.log("🛑 Shutting down...");
+        clearInterval(statusInterval);
+        await updateStatus(true);
+        console.log("✅ Offline status set. Bye!");
+        process.exit(0);
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
 
     // Keep Alive Ping (Every 14 Minutes)
     setInterval(() => {
         const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
-        // console.log(`🔔 Sending Keep-Alive Ping to ${url}...`);
-
         http.get(url, (res) => {
             console.log(`✅ Keep-Alive Ping successful: ${res.statusCode}`);
         }).on('error', (err) => {
@@ -168,6 +170,10 @@ client.on(Events.InteractionCreate, async interaction => {
             await setupStatus.execute(interaction);
         } else if (interaction.commandName === 'liarsbar') {
             await liarsbar.execute(interaction);
+        } else if (interaction.commandName === 'match') {
+            await match.execute(interaction);
+        } else if (interaction.commandName === 'donkey') {
+            await donkey.execute(interaction);
         }
     } else if (interaction.isButton()) {
         if (interaction.customId.startsWith('ttt_')) {
@@ -178,10 +184,32 @@ client.on(Events.InteractionCreate, async interaction => {
             await handleUnoInteraction(interaction);
         } else if (interaction.customId.startsWith('lb_')) {
             await handleLiarsBarInteraction(interaction);
+        } else if (interaction.customId.startsWith('lb_')) {
+            await handleLiarsBarInteraction(interaction);
+        } else if (interaction.customId.startsWith('donkey_')) {
+            const donkeyHandled = await handleDonkeyInteraction(interaction);
+            if (!donkeyHandled && !interaction.replied) {
+                await interaction.reply({ content: '❌ No active game found.', flags: MessageFlags.Ephemeral });
+            }
+        } else if (interaction.customId.startsWith('match_')) {
+            const matchHandled = await handleMatchInteraction(interaction);
+            if (!matchHandled && !interaction.replied) {
+                await interaction.reply({ content: '❌ No active game found.', flags: MessageFlags.Ephemeral });
+            }
         }
     } else if (interaction.isStringSelectMenu()) {
         if (interaction.customId.startsWith('lb_')) {
             await handleLiarsBarInteraction(interaction);
+        } else if (interaction.customId.startsWith('donkey_')) {
+            const donkeyHandled = await handleDonkeyInteraction(interaction);
+            if (!donkeyHandled && !interaction.replied) {
+                await interaction.reply({ content: '❌ No active game found.', flags: MessageFlags.Ephemeral });
+            }
+        } else if (interaction.customId.startsWith('match_')) {
+            const matchHandled = await handleMatchInteraction(interaction);
+            if (!matchHandled && !interaction.replied) {
+                await interaction.reply({ content: '❌ No active game found.', flags: MessageFlags.Ephemeral });
+            }
         }
     }
 
