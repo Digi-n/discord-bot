@@ -7,7 +7,7 @@ import * as ticTacToe from './commands/ticTacToe';
 import * as leaderboardCommand from './commands/leaderboardCommand';
 import * as connect4 from './commands/connect4';
 import * as uno from './commands/uno';
-import * as setupStatus from './commands/setupStatus';
+import * as setupStatus from './commands/setupStatusCmd';
 import * as liarsbar from './commands/liarsbar';
 import * as match from './commands/match';
 import * as donkey from './commands/donkeyCmd';
